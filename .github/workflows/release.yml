@@ -1,0 +1,50 @@
+# Builds PewBlock for Windows on every push and pull request.
+# Pushing a tag like v1.0.0 also publishes a GitHub Release with the zip attached.
+name: Build and release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch: # "Run workflow" button in the Actions tab
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write # needed to create the release
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      # One self-contained exe: players don't need .NET installed.
+      # The sounds in source/ are copied next to it by PewBlock.csproj.
+      - name: Publish
+        run: >
+          dotnet publish PewBlock.csproj -c Release -r win-x64 --self-contained
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -p:DebugType=none
+          -o publish/PewBlock
+
+      # Windows' built-in tar writes a standard zip (forward-slash paths, opens everywhere).
+      - name: Zip
+        run: tar -a -cf PewBlock-win-x64.zip -C publish PewBlock
+
+      # Downloadable from the run's summary page for any build (kept 90 days by default).
+      - uses: actions/upload-artifact@v7
+        with:
+          path: PewBlock-win-x64.zip
+          archive: false
+
+      - name: Create GitHub release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v3
+        with:
+          files: PewBlock-win-x64.zip
+          generate_release_notes: true

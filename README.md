@@ -11,7 +11,13 @@ Pick one of three modes from the main menu (click a card or press 1 / 2 / 3):
 
 New to game programming? Read **[FUNDAMENTALS.md](FUNDAMENTALS.md)**. It explains every system in this project from the ground up.
 
-## Run it
+## Download and play
+
+Go to the repo's **Releases** page (right sidebar on GitHub), download `PewBlock-win-x64.zip`, unzip it, and run `PewBlock.exe`.
+You don't need to install .NET; it's included in the exe.
+Windows may show "Windows protected your PC" because the exe isn't code-signed. Click **More info → Run anyway**.
+
+## Run from source
 
 Requirements: the .NET 10 SDK (`dotnet --list-sdks` should print `10.x`). Raylib comes from NuGet automatically.
 
@@ -19,7 +25,31 @@ Requirements: the .NET 10 SDK (`dotnet --list-sdks` should print `10.x`). Raylib
 cd D:\Projects\Game1
 dotnet run                      # debug build
 dotnet run -c Release           # faster build
-dotnet publish -c Release -r win-x64 --self-contained   # standalone folder you can share
+```
+
+## Deploying a new version (GitHub Actions)
+
+`.github/workflows/release.yml` builds the game on GitHub's Windows machines:
+
+- **Every push / pull request:** builds `PewBlock-win-x64.zip`. Download it from the run's page in the **Actions** tab (under *Artifacts*).
+- **Every tag starting with `v`:** also creates a **GitHub Release** with the zip attached, plus auto-generated notes.
+
+To release a version:
+
+```powershell
+git add -A
+git commit -m "Describe what changed"
+git push
+git tag v1.0.0            # bump the number for each release: v1.0.1, v1.1.0, ...
+git push origin v1.0.0
+```
+
+Follow the build in the **Actions** tab (about 2–3 minutes). The release then appears under **Releases**.
+
+To build the same zip contents on your own PC:
+
+```powershell
+dotnet publish -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publish/PewBlock
 ```
 
 ## Controls
