@@ -1,0 +1,82 @@
+# PewBlock
+
+A Krunker.io-style first-person shooter written in **C# (.NET 10)** with **[Raylib-cs](https://github.com/ChrisDill/Raylib-cs)**.
+Pick one of three modes from the main menu (click a card or press 1 / 2 / 3):
+
+| Mode | Rules |
+|---|---|
+| **Deathmatch** | You + 11 bots, everyone vs everyone (bots fight each other too). Respawn after 2.5 s. First to 20 kills wins. |
+| **Battle Royale** | You + 11 bots, everyone vs everyone, no respawns. A purple zone shrinks and hurts anyone outside it. Last one standing wins. When you're out, you spectate (click = next player, R = new match). |
+| **Parkour** | The same map with no enemies. Practice bhop, air strafing, slides and crate jumps. The top bar shows your top speed. |
+
+New to game programming? Read **[FUNDAMENTALS.md](FUNDAMENTALS.md)**. It explains every system in this project from the ground up.
+
+## Run it
+
+Requirements: the .NET 10 SDK (`dotnet --list-sdks` should print `10.x`). Raylib comes from NuGet automatically.
+
+```powershell
+cd D:\Projects\Game1
+dotnet run                      # debug build
+dotnet run -c Release           # faster build
+dotnet publish -c Release -r win-x64 --self-contained   # standalone folder you can share
+```
+
+## Controls
+
+| Key | Action |
+|---|---|
+| WASD | Move |
+| Mouse | Aim |
+| Left click | Shoot |
+| Right click | Aim down sights / scope |
+| Space | Jump. Hold it to bunny hop |
+| Shift / C | Crouch. Press while running to slide |
+| R | Reload |
+| 1 / 2 / Mouse wheel | Rifle / Sniper |
+| Tab | Scoreboard |
+| Esc | Pause (from the pause menu, `[` and `]` change sensitivity, default 1.00, M goes to the main menu, and Q quits) |
+| R / M (match over) | Play the same mode again / back to the main menu |
+
+## Movement tech (like Krunker)
+
+- **Bunny hop:** hold Space. Each time you land, you jump again on the same tick, so ground friction never slows you.
+- **Air strafe:** while in the air, hold A or D (not W) and turn the mouse smoothly toward that side. You gain speed.
+- **Slide:** press Shift while running fast. Press it in mid-air and the slide starts when you land (slide-hop).
+- **Crouch-jump:** crouching in the air pulls your legs up, so you can clear ledges 0.6 m higher.
+
+The bottom-center meter shows your speed. Base running speed is 7.5 m/s. Good air strafing can reach 18+.
+
+## Sounds
+
+Gun sounds live in `source/`. The build copies them next to the exe, so they work with `dotnet run` and with the standalone exe.
+
+| File | Used for |
+|---|---|
+| `source/burst.mp3` | Assault rifle (yours and every bot's) |
+| `source/sniper.mp3` | Sniper |
+
+- **Replace a sound:** overwrite the file with the same name (`.mp3`, `.wav` or `.ogg`).
+- **Use a different file for a weapon:** change `Sound:` in `src/Weapon.cs`.
+- Silence at the start and end of a file is trimmed automatically when it loads.
+- Bot gunshots get quieter with distance and come from the left or right speaker, depending on where the bot is.
+- If a file is missing, the game still runs; that weapon is just silent.
+
+## Project layout
+
+| File | What it does |
+|---|---|
+| `Program.cs` | Entry point |
+| `src/Game.cs` | Game loop, fixed timestep, game modes and match flow, shooting |
+| `src/Player.cs` | Player movement, crouch/slide, health, recoil, gun model |
+| `src/Movement.cs` | Quake-style friction and acceleration (bhop and air strafe math) |
+| `src/KinematicBody.cs` | Box collision against the map, stair stepping |
+| `src/World.cs` | Map layout, raycasts, line-of-sight checks |
+| `src/Bot.cs` | Enemy AI: target selection, combat, wandering, zone awareness |
+| `src/Combatant.cs` | `ICombatant`, shared by the player and bots, plus health/respawn rules |
+| `src/Zone.cs` | Shrinking battle royale circle |
+| `src/Weapon.cs` | Weapon stats, ammo, reload, fire rate, which sound each gun uses |
+| `src/Audio.cs` | Loads gun sounds, overlapping playback, distance volume and left/right panning |
+| `src/Effects.cs` | Tracers and particles |
+| `src/Hud.cs` | Crosshair, scope, health, ammo, kill feed, minimap, mode menu and per-mode screens |
+| `src/Render.cs` | Box drawing with flat per-face shading |
