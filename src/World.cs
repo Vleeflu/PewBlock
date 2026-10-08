@@ -3,8 +3,11 @@ using Raylib_cs;
 
 namespace PewBlock;
 
+/// <summary>What a block looks like: its color (also used on the minimap) and its texture.</summary>
+public readonly record struct Material(Color Color, Surface Surface);
+
 /// <summary>A solid axis-aligned box in the map.</summary>
-public readonly record struct Block(BoundingBox Box, Color Color);
+public readonly record struct Block(BoundingBox Box, Color Color, Surface Surface);
 
 /// <summary>
 /// A map: a list of solid boxes, plus spawn points. Collision, line of sight
@@ -12,7 +15,7 @@ public readonly record struct Block(BoundingBox Box, Color Color);
 /// Two maps exist: the 80 x 80 m arena (deathmatch, parkour) and the
 /// 180 x 180 m battle royale map.
 /// </summary>
-public sealed class World(float halfSize, Color floorColor, Color floorTileColor)
+public sealed class World(float halfSize, Material floor)
 {
     /// <summary>Half the side length: the playable floor spans -HalfSize..HalfSize on X and Z.</summary>
     public float HalfSize { get; } = halfSize;
@@ -20,21 +23,20 @@ public sealed class World(float halfSize, Color floorColor, Color floorTileColor
     public readonly List<Block> Blocks = [];
     public readonly List<Vector3> SpawnPoints = [];
 
-    static readonly Color SandColor = new(201, 196, 176, 255);
-    static readonly Color SandTileColor = new(186, 181, 160, 255);
-    static readonly Color GrassColor = new(118, 158, 92, 255);
-    static readonly Color GrassTileColor = new(108, 148, 84, 255);
-    static readonly Color WallColor = new(122, 146, 176, 255);
-    static readonly Color TowerColor = new(236, 204, 150, 255);
-    static readonly Color CrateColor = new(186, 128, 78, 255);
-    static readonly Color PlatformColor = new(150, 186, 206, 255);
-    static readonly Color AccentColor = new(226, 112, 92, 255);
-    static readonly Color StairColor = new(214, 214, 214, 255);
-    static readonly Color RuinColor = new(196, 176, 150, 255);
-    static readonly Color RockColor = new(140, 140, 136, 255);
-    static readonly Color TrunkColor = new(110, 80, 56, 255);
-    static readonly Color LeafColor = new(72, 128, 64, 255);
-    static readonly Color SandbagColor = new(170, 156, 116, 255);
+    static readonly Material Sand = new(new(214, 206, 180, 255), Surface.Sand);
+    static readonly Material Grass = new(new(124, 166, 96, 255), Surface.Grass);
+    static readonly Material Wall = new(new(130, 152, 182, 255), Surface.Concrete);
+    static readonly Material Tower = new(new(240, 210, 160, 255), Surface.Plaster);
+    static readonly Material Crate = new(new(200, 142, 88, 255), Surface.Crate);
+    static readonly Material TreadPlate = new(new(160, 194, 212, 255), Surface.MetalPlate);
+    static readonly Material Accent = new(new(226, 112, 92, 255), Surface.PaintedMetal);
+    static readonly Material Stair = new(new(220, 220, 220, 255), Surface.Concrete);
+    static readonly Material Bricks = new(new(206, 182, 156, 255), Surface.Brick);
+    static readonly Material Rock = new(new(150, 150, 146, 255), Surface.Rock);
+    static readonly Material Trunk = new(new(124, 92, 64, 255), Surface.Bark);
+    static readonly Material Leaf = new(new(84, 146, 72, 255), Surface.Leaves);
+    static readonly Material LeafTop = new(new(98, 166, 82, 255), Surface.Leaves);
+    static readonly Material Sandbag = new(new(178, 164, 122, 255), Surface.Sandbag);
 
     public const float StepRise = 0.5f;
     const float StepDepth = 0.6f;
@@ -42,7 +44,7 @@ public sealed class World(float halfSize, Color floorColor, Color floorTileColor
     /// <summary>Deathmatch and parkour map: 80 x 80 m, central tower, four corner platforms, lanes.</summary>
     public static World CreateArena()
     {
-        var w = new World(40, SandColor, SandTileColor);
+        var w = new World(40, Sand);
         w.OuterWalls();
         w.CenterTower();
 
@@ -62,7 +64,7 @@ public sealed class World(float halfSize, Color floorColor, Color floorTileColor
             (12, 12, 1.2f), (-12, -12, 1.2f), (12, -12, 2.4f), (-12, 12, 2.4f),
             (34, 0, 1.2f), (-34, 0, 1.2f), (0, 34, 1.2f), (0, -34, 1.2f),
         ];
-        foreach (var (x, z, h) in crates) w.Box(x, 0, z, 2, h, 2, CrateColor);
+        foreach (var (x, z, h) in crates) w.Box(x, 0, z, 2, h, 2, Crate);
 
         // Ground spawns.
         foreach (int s in new[] { -1, 1 })
@@ -83,7 +85,7 @@ public sealed class World(float halfSize, Color floorColor, Color floorTileColor
     /// </summary>
     public static World CreateRoyale()
     {
-        var w = new World(90, GrassColor, GrassTileColor);
+        var w = new World(90, Grass);
         w.OuterWalls();
         w.CenterTower();
         foreach (int sx in new[] { -1, 1 })
@@ -110,12 +112,12 @@ public sealed class World(float halfSize, Color floorColor, Color floorTileColor
         {
             float width = 2 + rng.NextSingle() * 2.5f, depth = 2 + rng.NextSingle() * 2.5f;
             float height = rng.Next(3) == 0 ? 1.2f : 1.6f + rng.NextSingle() * 1.6f;
-            w.Box(x, 0, z, width, height, depth, RockColor);
+            w.Box(x, 0, z, width, height, depth, Rock);
         });
         w.Scatter(rng, 30, 3.5f, (x, z) =>
         {
-            w.Box(x, 0, z, 2, 1.2f, 2, CrateColor);
-            if (rng.Next(2) == 0) w.Box(x + 2, 0, z, 2, 2.4f, 2, CrateColor);
+            w.Box(x, 0, z, 2, 1.2f, 2, Crate);
+            if (rng.Next(2) == 0) w.Box(x + 2, 0, z, 2, 2.4f, 2, Crate);
         });
         return w;
     }
@@ -123,36 +125,36 @@ public sealed class World(float halfSize, Color floorColor, Color floorTileColor
     void OuterWalls()
     {
         float s = HalfSize;
-        Box(0, -1, 0, s * 2, 1, s * 2, floorColor);
-        Box(0, 0, s + 0.5f, s * 2 + 2, 8, 1, WallColor);
-        Box(0, 0, -s - 0.5f, s * 2 + 2, 8, 1, WallColor);
-        Box(s + 0.5f, 0, 0, 1, 8, s * 2, WallColor);
-        Box(-s - 0.5f, 0, 0, 1, 8, s * 2, WallColor);
+        Box(0, -1, 0, s * 2, 1, s * 2, floor);
+        Box(0, 0, s + 0.5f, s * 2 + 2, 8, 1, Wall);
+        Box(0, 0, -s - 0.5f, s * 2 + 2, 8, 1, Wall);
+        Box(s + 0.5f, 0, 0, 1, 8, s * 2, Wall);
+        Box(-s - 0.5f, 0, 0, 1, 8, s * 2, Wall);
     }
 
     /// <summary>4 m tower with stairs on two sides and low cover on top, plus four mid walls that split the area into lanes.</summary>
     void CenterTower()
     {
-        Box(0, 0, 0, 10, 4, 10, TowerColor);
+        Box(0, 0, 0, 10, 4, 10, Tower);
         Stairs(0, 5, 0, 1, 8, 3);
         Stairs(0, -5, 0, -1, 8, 3);
-        Box(-4.6f, 4, 0, 0.8f, 1.2f, 6, AccentColor);
-        Box(4.6f, 4, 0, 0.8f, 1.2f, 6, AccentColor);
+        Box(-4.6f, 4, 0, 0.8f, 1.2f, 6, Accent);
+        Box(4.6f, 4, 0, 0.8f, 1.2f, 6, Accent);
         foreach (int s in new[] { -1, 1 })
         {
-            Box(18 * s, 0, 0, 1, 3.5f, 16, WallColor);
-            Box(0, 0, 18 * s, 16, 3.5f, 1, WallColor);
+            Box(18 * s, 0, 0, 1, 3.5f, 16, Wall);
+            Box(0, 0, 18 * s, 16, 3.5f, 1, Wall);
         }
     }
 
     /// <summary>12 x 12 m platform, 3 m high, centered at (cx, cz). (sx, sz) point away from the map center.</summary>
     void Platform(float cx, float cz, int sx, int sz)
     {
-        Box(cx, 0, cz, 12, 3, 12, PlatformColor);
+        Box(cx, 0, cz, 12, 3, 12, TreadPlate);
         Stairs(cx - 6 * sx, cz, -sx, 0, 6, 3);
-        Box(cx, 3, cz - 5.6f * sz, 6, 1.2f, 0.8f, AccentColor);   // cover on the edge
-        Box(cx + 4 * sx, 0, cz - 7 * sz, 2, 2.4f, 2, CrateColor);  // parkour: 2.4 m crate
-        Box(cx + 4 * sx, 0, cz - 9 * sz, 2, 1.2f, 2, CrateColor);  // parkour: 1.2 m crate
+        Box(cx, 3, cz - 5.6f * sz, 6, 1.2f, 0.8f, Accent);   // cover on the edge
+        Box(cx + 4 * sx, 0, cz - 7 * sz, 2, 2.4f, 2, Crate);  // parkour: 2.4 m crate
+        Box(cx + 4 * sx, 0, cz - 9 * sz, 2, 1.2f, 2, Crate);  // parkour: 1.2 m crate
     }
 
     /// <summary>
@@ -165,8 +167,8 @@ public sealed class World(float halfSize, Color floorColor, Color floorTileColor
         Ruin(cx - 11 * sx, cz + 11 * sz);
         Ruin(cx + 11 * sx, cz - 11 * sz);
         Ruin(cx - 11 * sx, cz - 11 * sz);
-        Box(cx - 3 * sx, 0, cz + 4 * sz, 2, 1.2f, 2, CrateColor);
-        Box(cx + 4 * sx, 0, cz - 3 * sz, 2, 2.4f, 2, CrateColor);
+        Box(cx - 3 * sx, 0, cz + 4 * sz, 2, 1.2f, 2, Crate);
+        Box(cx + 4 * sx, 0, cz - 3 * sz, 2, 2.4f, 2, Crate);
     }
 
     /// <summary>
@@ -184,33 +186,33 @@ public sealed class World(float halfSize, Color floorColor, Color floorTileColor
         {
             float h1 = (k++ % 3 == 0) ? 1.3f : 3.2f;
             float h2 = (k++ % 4 == 0) ? 1.3f : 3.2f;
-            Box(cx + p * offset, 0, cz + s * edge, piece, h1, thick, RuinColor); // north / south
-            Box(cx + s * edge, 0, cz + p * offset, thick, h2, piece, RuinColor); // east / west
+            Box(cx + p * offset, 0, cz + s * edge, piece, h1, thick, Bricks); // north / south
+            Box(cx + s * edge, 0, cz + p * offset, thick, h2, piece, Bricks); // east / west
         }
-        Box(cx + 2.5f, 0, cz + 2.5f, 2, 1.2f, 2, CrateColor);
+        Box(cx + 2.5f, 0, cz + 2.5f, 2, 1.2f, 2, Crate);
     }
 
     /// <summary>6 m watchtower at (cx, cz) with stairs going toward (dx, dz), sandbags on the other three sides.</summary>
     void Outpost(float cx, float cz, int dx, int dz)
     {
-        Box(cx, 0, cz, 4, 6, 4, TowerColor);
+        Box(cx, 0, cz, 4, 6, 4, Tower);
         Stairs(cx + dx * 2, cz + dz * 2, dx, dz, 12, 2.4f);
         // Low cover on top, on the three sides without stairs.
         (int x, int z)[] sides = [(1, 0), (-1, 0), (0, 1), (0, -1)];
         foreach (var (x, z) in sides)
         {
             if (x == dx && z == dz) continue;
-            Box(cx + x * 1.8f, 6, cz + z * 1.8f, x != 0 ? 0.4f : 4, 1.1f, z != 0 ? 0.4f : 4, AccentColor);
-            Box(cx + x * 7, 0, cz + z * 7, x != 0 ? 1.2f : 8, 1.2f, z != 0 ? 1.2f : 8, SandbagColor);
+            Box(cx + x * 1.8f, 6, cz + z * 1.8f, x != 0 ? 0.4f : 4, 1.1f, z != 0 ? 0.4f : 4, Accent);
+            Box(cx + x * 7, 0, cz + z * 7, x != 0 ? 1.2f : 8, 1.2f, z != 0 ? 1.2f : 8, Sandbag);
         }
     }
 
     /// <summary>Trunk with a two-layer canopy. The canopy is solid, so it blocks shots and sight.</summary>
     void Tree(float x, float z)
     {
-        Box(x, 0, z, 0.7f, 3.2f, 0.7f, TrunkColor);
-        Box(x, 3.2f, z, 3.4f, 1.6f, 3.4f, LeafColor);
-        Box(x, 4.8f, z, 2.2f, 1.1f, 2.2f, MathUtil.Shade(LeafColor, 1.15f));
+        Box(x, 0, z, 0.7f, 3.2f, 0.7f, Trunk);
+        Box(x, 3.2f, z, 3.4f, 1.6f, 3.4f, Leaf);
+        Box(x, 4.8f, z, 2.2f, 1.1f, 2.2f, LeafTop);
     }
 
     /// <summary>
@@ -232,10 +234,10 @@ public sealed class World(float halfSize, Color floorColor, Color floorTileColor
     }
 
     /// <summary>Adds a box. (x, z) is the center on the ground, y is the bottom.</summary>
-    void Box(float x, float y, float z, float width, float height, float depth, Color color) =>
+    void Box(float x, float y, float z, float width, float height, float depth, Material material) =>
         Blocks.Add(new Block(new BoundingBox(
             new Vector3(x - width / 2, y, z - depth / 2),
-            new Vector3(x + width / 2, y + height, z + depth / 2)), color));
+            new Vector3(x + width / 2, y + height, z + depth / 2)), material.Color, material.Surface));
 
     /// <summary>
     /// Builds stairs against a face at (edgeX, edgeZ) going outward along (dirX, dirZ).
@@ -249,7 +251,7 @@ public sealed class World(float halfSize, Color floorColor, Color floorTileColor
             float x = edgeX + dirX * along, z = edgeZ + dirZ * along;
             float w = dirX != 0 ? StepDepth : width;
             float d = dirX != 0 ? width : StepDepth;
-            Box(x, 0, z, w, (steps - k) * StepRise, d, StairColor);
+            Box(x, 0, z, w, (steps - k) * StepRise, d, Stair);
         }
     }
 
@@ -324,17 +326,14 @@ public sealed class World(float halfSize, Color floorColor, Color floorTileColor
         return SpawnPoints.MinBy(s => Vector2.Distance(new Vector2(s.X, s.Z), center));
     }
 
+    Block[]? drawOrder;
+
     public void Draw()
     {
-        foreach (var b in Blocks) Render.ShadedBox(b.Box.Min, b.Box.Max, b.Color);
-
-        // Checkerboard floor tiles give a sense of speed when moving.
-        const float tile = 4f;
-        int n = (int)(HalfSize / tile);
-        for (int i = -n; i < n; i++)
-        for (int j = -n; j < n; j++)
-            if (((i + j) & 1) == 0)
-                Render.FloorQuad(i * tile, j * tile, (i + 1) * tile, (j + 1) * tile, 0.005f, floorTileColor);
+        // Grouped by texture: consecutive boxes with the same texture share one GPU draw call.
+        foreach (var b in drawOrder ??= [.. Blocks.OrderBy(b => b.Surface)])
+            Render.ShadedBox(b.Box.Min, b.Box.Max, b.Color, b.Surface);
+        Render.ResetTexture();
 
         // Dark outlines make the blocky shapes readable.
         foreach (var b in Blocks) Raylib.DrawBoundingBox(b.Box, MathUtil.Shade(b.Color, 0.6f));

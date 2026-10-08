@@ -126,12 +126,22 @@ GPUs only draw triangles. A box is 6 faces × 2 triangles. `Render.ShadedBox` se
 
 Krunker's look comes from flat colors with each side of a block a slightly different shade. We do that with no lights at all: the top face is 100% brightness, the X sides 86%, the Z sides 72%, the bottom 55%. Dark outlines (`DrawBoundingBox`) make the shapes readable.
 
+### Textures
+
+A **texture** is an image glued onto a surface. Each corner of a face gets a **texture coordinate** (u, v): where in the image that corner should sample. (0, 0) is the image's top-left and (1, 1) its bottom-right. Values beyond 1 make the image **repeat** (tile).
+
+- **Where the images come from:** `tools/AssetGen` is a separate little program that paints every texture from **noise** (smooth random values) and simple shapes, then saves them as PNGs in `assets/textures`. The noise wraps around at the image edges, so each texture tiles without a visible seam. Generating them with code means you can restyle the whole game by changing a few numbers and rerunning it, but they're ordinary PNGs, so you could also paint your own.
+- **Real-world size:** `Render.ShadedBox` sets u and v to the distance along a face divided by how many meters one copy of the image covers (`Textures.cs`: concrete 4 m, bricks 2 m, fabric 0.5 m...). An 80 m wall and a 1 m wall therefore show bricks of the same size. Crates use "stretch once per face" instead, so every crate side shows exactly one crate.
+- **Grayscale × color:** the textures are gray, and the GPU multiplies each pixel by the vertex color (which already contains the fake lighting). One fabric texture gives every bot camo in their own color, and the block colors you pick in `World.cs` still decide what the map looks like.
+- **Mipmaps:** far away, many texture pixels land on one screen pixel and the image shimmers. `Textures.Load` asks raylib for **mipmaps** (pre-shrunk half-size copies) plus trilinear and anisotropic filtering, so distant floors stay calm and sharp.
+- **Draw calls:** switching textures forces the GPU to start a new batch of triangles. `World.Draw` draws blocks grouped by texture so each texture is switched to only once per frame.
+
 ### Models from boxes and cylinders
 
 Everything is built from two shapes in `Render.cs`: shaded boxes and shaded cylinders. A cylinder is a ring of side quads plus two capped ends; each side quad gets the brightness of the box face it most resembles (pointing up = 100%, down = 55%), so cylinders match the fake lighting. `Render.TiltedCube` rotates a box around X for slanted parts like grips and magazines.
 
 - **Guns** (`GunModel.cs`): the M4A4 has a collapsible stock, flat-top rail, curved magazine, iron sights and a flash hider; the AWP has an olive thumbhole stock, a bolt handle, a big scope with a glass lens and a muzzle brake. Both are modeled in meters with the barrel along +Z, so the same model is used in first person and in the bots' hands (scaled 1.4× there so it reads at a distance).
-- **Bots** (`Bot.Draw`): boots, legs that swing from the hip, a vest in the bot's color with pouches, a backpack, both arms reaching for the gun's grip and handguard, a face, and one of four headgears picked from the bot's roster index. The head still fills exactly the head hitbox.
+- **Bots** (`Bot.Draw`): leather boots, legs that swing from the hip, a camo vest in the bot's color with pouches, a backpack, both arms reaching for the gun's grip and handguard, a face, and one of four headgears picked from the bot's roster index. The head still fills exactly the head hitbox.
 
 ### The gun (view model)
 

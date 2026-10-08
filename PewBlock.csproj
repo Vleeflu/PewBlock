@@ -15,8 +15,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Sound files are copied next to the exe (bin/.../source/) so they load from anywhere. -->
+    <!-- Sound files and textures are copied next to the exe (bin/.../source/, bin/.../assets/) so they load from anywhere. -->
     <None Include="source\**\*.mp3;source\**\*.wav;source\**\*.ogg" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="assets\**\*.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- tools/AssetGen is a separate program (it generates assets/textures); keep it out of the game. -->
+    <Compile Remove="tools\**" />
+    <None Remove="tools\**" />
   </ItemGroup>
 
 </Project>

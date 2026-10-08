@@ -109,6 +109,7 @@ public sealed class Game
         Raylib.SetWindowMinSize(800, 450);
         Raylib.SetExitKey(KeyboardKey.Null); // Esc pauses instead of quitting
         audio = new Audio(Path.Combine(AppContext.BaseDirectory, "source"), [WeaponDefs.Rifle.Sound, WeaponDefs.Sniper.Sound]);
+        Textures.Load(Path.Combine(AppContext.BaseDirectory, "assets", "textures"));
         Camera = new Camera3D(Vector3.Zero, Vector3.UnitZ, Vector3.UnitY, BaseFov, CameraProjection.Perspective);
         ResetMatch(GameMode.Deathmatch); // bots standing around as a menu backdrop
 
@@ -118,6 +119,7 @@ public sealed class Game
             Draw();
         }
         audio.Dispose();
+        Textures.Unload();
         Raylib.CloseWindow();
     }
 

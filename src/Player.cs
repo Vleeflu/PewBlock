@@ -314,26 +314,26 @@ public sealed class Player : ICombatant
         return p;
     }
 
-    static readonly Color Glove = new(50, 48, 44, 255);
-    static readonly Color GloveCuff = new(32, 32, 34, 255);
-    static readonly Color Sleeve = new(76, 92, 112, 255);
+    static readonly Color Glove = new(64, 60, 54, 255);
+    static readonly Color GloveCuff = new(40, 40, 42, 255);
+    static readonly Color Sleeve = new(84, 100, 122, 255);
 
     /// <summary>
-    /// Gloved hands and sleeves. <paramref name="grip"/> is the pistol grip center, <paramref name="support"/>
+    /// Leather gloves and camo sleeves. <paramref name="grip"/> is the pistol grip center, <paramref name="support"/>
     /// the bottom middle of the handguard. Forearms run back toward the shoulders, below and beside the camera.
     /// </summary>
     static void DrawArms(Vector3 grip, float gripTilt, Vector3 support)
     {
         // Right hand wrapped around the pistol grip.
-        Render.TiltedCube(grip + new Vector3(-0.004f, 0.005f, -0.004f), new(0.062f, 0.08f, 0.066f), gripTilt, Glove);
-        Render.ShadedCylinder(grip + new Vector3(-0.005f, -0.03f, -0.04f), grip + new Vector3(-0.02f, -0.07f, -0.09f), 0.038f, GloveCuff);
-        Render.ShadedCylinder(grip + new Vector3(-0.015f, -0.06f, -0.08f), grip + new Vector3(-0.08f, -0.25f, -0.3f), 0.045f, Sleeve);
+        Render.TiltedCube(grip + new Vector3(-0.004f, 0.005f, -0.004f), new(0.062f, 0.08f, 0.066f), gripTilt, Glove, Surface.Leather);
+        Render.ShadedCylinder(grip + new Vector3(-0.005f, -0.03f, -0.04f), grip + new Vector3(-0.02f, -0.07f, -0.09f), 0.038f, GloveCuff, Surface.Leather);
+        Render.ShadedCylinder(grip + new Vector3(-0.015f, -0.06f, -0.08f), grip + new Vector3(-0.08f, -0.25f, -0.3f), 0.045f, Sleeve, Surface.Fabric);
 
         // Left hand under the handguard: palm below, fingers up the left side, thumb on the right.
-        Render.ShadedCube(support + new Vector3(0.005f, -0.012f, 0), new(0.07f, 0.03f, 0.085f), Glove);
-        Render.ShadedCube(support + new Vector3(0.034f, 0.025f, 0), new(0.012f, 0.05f, 0.075f), Glove);
-        Render.ShadedCube(support + new Vector3(-0.032f, 0.02f, -0.01f), new(0.012f, 0.02f, 0.05f), Glove);
-        Render.ShadedCylinder(support + new Vector3(0.02f, -0.02f, -0.05f), support + new Vector3(0.05f, -0.05f, -0.09f), 0.04f, GloveCuff);
-        Render.ShadedCylinder(support + new Vector3(0.045f, -0.045f, -0.08f), support + new Vector3(0.22f, -0.24f, -0.33f), 0.045f, Sleeve);
+        Render.ShadedCube(support + new Vector3(0.005f, -0.012f, 0), new(0.07f, 0.03f, 0.085f), Glove, Surface.Leather);
+        Render.ShadedCube(support + new Vector3(0.034f, 0.025f, 0), new(0.012f, 0.05f, 0.075f), Glove, Surface.Leather);
+        Render.ShadedCube(support + new Vector3(-0.032f, 0.02f, -0.01f), new(0.012f, 0.02f, 0.05f), Glove, Surface.Leather);
+        Render.ShadedCylinder(support + new Vector3(0.02f, -0.02f, -0.05f), support + new Vector3(0.05f, -0.05f, -0.09f), 0.04f, GloveCuff, Surface.Leather);
+        Render.ShadedCylinder(support + new Vector3(0.045f, -0.045f, -0.08f), support + new Vector3(0.22f, -0.24f, -0.33f), 0.045f, Sleeve, Surface.Fabric);
     }
 }

@@ -273,9 +273,10 @@ public sealed class Bot(string name, Color color, int look) : ICombatant
     static readonly Color Glove = new(50, 48, 44, 255);
 
     /// <summary>
-    /// Soldier made of shaded boxes, rotated to face Yaw: boots, swinging legs, vest in the
-    /// bot's color, backpack, both arms on an M4A4, a face, and one of four headgears.
-    /// The head fills the head hitbox (1.35 m to 1.85 m) and everything below it the body hitbox.
+    /// Soldier made of shaded, textured boxes, rotated to face Yaw: leather boots, swinging
+    /// camo legs, a camo vest in the bot's color, backpack, both arms on an M4A4, a face, and
+    /// one of four headgears. The head fills the head hitbox (1.35 m to 1.85 m) and
+    /// everything below it the body hitbox.
     /// </summary>
     public void Draw(float alpha)
     {
@@ -299,14 +300,14 @@ public sealed class Bot(string name, Color color, int look) : ICombatant
         DrawLeg(-0.14f, Body.Grounded ? -swing : -12f, pants, C(Boot), dark);
 
         // Torso: shirt, vest with pouches, belt, backpack.
-        Render.ShadedCube(new(0, 1.15f, 0), new(0.56f, 0.42f, 0.3f), shirt);
-        Render.ShadedCube(new(0, 1.17f, 0.005f), new(0.6f, 0.34f, 0.34f), vest);
+        Render.ShadedCube(new(0, 1.15f, 0), new(0.56f, 0.42f, 0.3f), shirt, Surface.Fabric);
+        Render.ShadedCube(new(0, 1.17f, 0.005f), new(0.6f, 0.34f, 0.34f), vest, Surface.Fabric);
         for (int i = -1; i <= 1; i++)
-            Render.ShadedCube(new(i * 0.16f, 1.08f, 0.19f), new(0.12f, 0.12f, 0.05f), C(MathUtil.Shade(Color, 0.8f)));
-        Render.ShadedCube(new(0, 0.95f, 0), new(0.58f, 0.07f, 0.32f), dark);
+            Render.ShadedCube(new(i * 0.16f, 1.08f, 0.19f), new(0.12f, 0.12f, 0.05f), C(MathUtil.Shade(Color, 0.8f)), Surface.Fabric);
+        Render.ShadedCube(new(0, 0.95f, 0), new(0.58f, 0.07f, 0.32f), dark, Surface.Leather);
         Render.ShadedCube(new(0, 0.95f, 0.165f), new(0.08f, 0.05f, 0.01f), C(new Color(170, 150, 90, 255)));
-        Render.ShadedCube(new(0, 1.15f, -0.24f), new(0.42f, 0.4f, 0.16f), C(Backpack));
-        Render.ShadedCube(new(0, 1.3f, -0.25f), new(0.44f, 0.1f, 0.17f), C(MathUtil.Shade(Backpack, 0.8f)));
+        Render.ShadedCube(new(0, 1.15f, -0.24f), new(0.42f, 0.4f, 0.16f), C(Backpack), Surface.Fabric);
+        Render.ShadedCube(new(0, 1.3f, -0.25f), new(0.44f, 0.1f, 0.17f), C(MathUtil.Shade(Backpack, 0.8f)), Surface.Fabric);
 
         // Gun, then both arms reaching for its grip and handguard.
         Rlgl.PushMatrix();
@@ -321,8 +322,8 @@ public sealed class Bot(string name, Color color, int look) : ICombatant
         DrawArm(new(0.34f, 1.31f, 0), new(0.24f, 1.08f, 0.22f), leftHand, shirt, C(Glove));
 
         // Neck, head and face.
-        Render.ShadedCube(new(0, 1.37f, 0), new(0.18f, 0.06f, 0.18f), skin);
-        Render.ShadedCube(new(0, 1.58f, 0), new(0.42f, 0.42f, 0.42f), skin);
+        Render.ShadedCube(new(0, 1.37f, 0), new(0.18f, 0.06f, 0.18f), skin, Surface.Skin);
+        Render.ShadedCube(new(0, 1.58f, 0), new(0.42f, 0.42f, 0.42f), skin, Surface.Skin);
         foreach (int side in new[] { -1, 1 })
         {
             Render.ShadedCube(new(side * 0.1f, 1.61f, 0.212f), new(0.1f, 0.065f, 0.01f), C(Color.White));
@@ -333,6 +334,7 @@ public sealed class Bot(string name, Color color, int look) : ICombatant
         DrawHeadgear(look % 4, vest, dark, flash);
 
         Rlgl.PopMatrix();
+        Render.ResetTexture();
     }
 
     /// <summary>Pants, knee pad and boot, rotated around the hip joint.</summary>
@@ -341,17 +343,17 @@ public sealed class Bot(string name, Color color, int look) : ICombatant
         Rlgl.PushMatrix();
         Rlgl.Translatef(x, 0.92f, 0);
         Rlgl.Rotatef(degrees, 1, 0, 0);
-        Render.ShadedCube(new(0, -0.42f, 0), new(0.22f, 0.8f, 0.24f), pants);
-        Render.ShadedCube(new(0, -0.47f, 0.125f), new(0.2f, 0.13f, 0.03f), pad);
-        Render.ShadedCube(new(0, -0.85f, 0.035f), new(0.23f, 0.15f, 0.32f), boot);
+        Render.ShadedCube(new(0, -0.42f, 0), new(0.22f, 0.8f, 0.24f), pants, Surface.Fabric);
+        Render.ShadedCube(new(0, -0.47f, 0.125f), new(0.2f, 0.13f, 0.03f), pad, Surface.Leather);
+        Render.ShadedCube(new(0, -0.85f, 0.035f), new(0.23f, 0.15f, 0.32f), boot, Surface.Leather);
         Rlgl.PopMatrix();
     }
 
     static void DrawArm(Vector3 shoulder, Vector3 elbow, Vector3 hand, Color sleeve, Color glove)
     {
-        Render.ShadedCylinder(shoulder, elbow, 0.075f, sleeve, 8);
-        Render.ShadedCylinder(elbow, hand, 0.062f, sleeve, 8);
-        Render.ShadedCube(hand, new(0.1f, 0.1f, 0.1f), glove);
+        Render.ShadedCylinder(shoulder, elbow, 0.075f, sleeve, Surface.Fabric, sides: 8);
+        Render.ShadedCylinder(elbow, hand, 0.062f, sleeve, Surface.Fabric, sides: 8);
+        Render.ShadedCube(hand, new(0.1f, 0.1f, 0.1f), glove, Surface.Leather);
     }
 
     /// <summary>0 helmet with goggles, 1 cap, 2 spiky hair, 3 beanie. Stays inside the head hitbox.</summary>
@@ -360,25 +362,25 @@ public sealed class Bot(string name, Color color, int look) : ICombatant
         switch (kind)
         {
             case 0:
-                Render.ShadedCube(new(0, 1.8f, 0), new(0.48f, 0.12f, 0.48f), MathUtil.Shade(color, 0.75f));
-                Render.ShadedCube(new(0, 1.75f, 0), new(0.5f, 0.04f, 0.5f), MathUtil.Shade(color, 0.6f));
-                Render.ShadedCube(new(0, 1.72f, 0.215f), new(0.36f, 0.07f, 0.03f), dark);
+                Render.ShadedCube(new(0, 1.8f, 0), new(0.48f, 0.12f, 0.48f), MathUtil.Shade(color, 0.75f), Surface.PaintedMetal);
+                Render.ShadedCube(new(0, 1.75f, 0), new(0.5f, 0.04f, 0.5f), MathUtil.Shade(color, 0.6f), Surface.PaintedMetal);
+                Render.ShadedCube(new(0, 1.72f, 0.215f), new(0.36f, 0.07f, 0.03f), dark, Surface.Leather);
                 Render.ShadedCube(new(0, 1.72f, 0.232f), new(0.3f, 0.05f, 0.01f), flash ? Color.White : new Color(120, 190, 230, 255));
                 break;
             case 1:
-                Render.ShadedCube(new(0, 1.81f, -0.01f), new(0.45f, 0.1f, 0.45f), color);
-                Render.ShadedCube(new(0, 1.77f, 0.3f), new(0.38f, 0.03f, 0.2f), MathUtil.Shade(color, 0.7f));
+                Render.ShadedCube(new(0, 1.81f, -0.01f), new(0.45f, 0.1f, 0.45f), color, Surface.Fabric);
+                Render.ShadedCube(new(0, 1.77f, 0.3f), new(0.38f, 0.03f, 0.2f), MathUtil.Shade(color, 0.7f), Surface.Fabric);
                 break;
             case 2:
                 var hair = flash ? Color.White : new Color(60, 42, 30, 255);
-                Render.ShadedCube(new(0, 1.81f, 0), new(0.44f, 0.06f, 0.44f), hair);
-                Render.ShadedCube(new(0, 1.66f, -0.215f), new(0.44f, 0.26f, 0.04f), hair);
+                Render.ShadedCube(new(0, 1.81f, 0), new(0.44f, 0.06f, 0.44f), hair, Surface.Hair);
+                Render.ShadedCube(new(0, 1.66f, -0.215f), new(0.44f, 0.26f, 0.04f), hair, Surface.Hair);
                 for (int i = -1; i <= 1; i++)
-                    Render.ShadedCube(new(i * 0.13f, 1.835f, 0.05f * i), new(0.1f, 0.03f, 0.12f), hair);
+                    Render.ShadedCube(new(i * 0.13f, 1.835f, 0.05f * i), new(0.1f, 0.03f, 0.12f), hair, Surface.Hair);
                 break;
             default:
-                Render.ShadedCube(new(0, 1.8f, 0), new(0.45f, 0.14f, 0.45f), MathUtil.Shade(color, 0.9f));
-                Render.ShadedCube(new(0, 1.74f, 0), new(0.47f, 0.05f, 0.47f), MathUtil.Shade(color, 0.6f));
+                Render.ShadedCube(new(0, 1.8f, 0), new(0.45f, 0.14f, 0.45f), MathUtil.Shade(color, 0.9f), Surface.Fabric);
+                Render.ShadedCube(new(0, 1.74f, 0), new(0.47f, 0.05f, 0.47f), MathUtil.Shade(color, 0.6f), Surface.Fabric);
                 break;
         }
     }
