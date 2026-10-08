@@ -12,15 +12,16 @@ public sealed class Zone
 {
     readonly record struct Phase(float Wait, float Shrink, float Radius, float Dps);
 
-    // The last phase closes completely, so the match can't stall (about 2 minutes max).
+    // Tuned for the 180 x 180 m battle royale map. The last phase closes completely,
+    // so the match can't stall (about 3 minutes max).
     static readonly Phase[] Phases =
     [
-        new(Wait: 20, Shrink: 20, Radius: 34, Dps: 2),
-        new(Wait: 15, Shrink: 15, Radius: 18, Dps: 4),
-        new(Wait: 10, Shrink: 15, Radius: 8, Dps: 7),
-        new(Wait: 8, Shrink: 15, Radius: 0, Dps: 15),
+        new(Wait: 25, Shrink: 25, Radius: 75, Dps: 2),
+        new(Wait: 20, Shrink: 20, Radius: 42, Dps: 4),
+        new(Wait: 15, Shrink: 18, Radius: 20, Dps: 7),
+        new(Wait: 12, Shrink: 15, Radius: 8, Dps: 12),
+        new(Wait: 8, Shrink: 15, Radius: 0, Dps: 20),
     ];
-    const float StartRadius = 58f; // covers the whole 80 x 80 arena, corners included
 
     static readonly Color WallColor = new(140, 80, 255, 70);
     static readonly Color NextColor = new(255, 255, 255, 200);
@@ -34,7 +35,7 @@ public sealed class Zone
     int phase;
     float timer;
     Vector2 fromCenter;
-    float fromRadius;
+    float fromRadius, mapHalfSize;
 
     bool Finished => phase >= Phases.Length;
     public float Dps => Phases[Math.Min(phase, Phases.Length - 1)].Dps;
@@ -43,10 +44,12 @@ public sealed class Zone
         : Shrinking ? $"ZONE CLOSING {MathF.Ceiling(Phases[phase].Shrink - timer)}s"
         : $"ZONE SHRINKS IN {MathF.Ceiling(Phases[phase].Wait - timer)}s";
 
-    public void Reset()
+    /// <summary>Starts a fresh zone that covers the whole map, corners included.</summary>
+    public void Reset(World world)
     {
+        mapHalfSize = world.HalfSize;
         Center = Vector2.Zero;
-        Radius = StartRadius;
+        Radius = world.HalfSize * MathF.Sqrt(2) + 2;
         phase = 0;
         timer = 0;
         Shrinking = false;
@@ -90,7 +93,7 @@ public sealed class Zone
         float angle = MathUtil.Range(0, MathF.Tau);
         float dist = MathF.Sqrt(Random.Shared.NextSingle()) * maxOffset;
         var c = Center + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * dist;
-        float limit = MathF.Max(0, World.HalfSize - NextRadius - 2);
+        float limit = MathF.Max(0, mapHalfSize - NextRadius - 2);
         NextCenter = Vector2.Clamp(c, new Vector2(-limit), new Vector2(limit));
     }
 

@@ -5,9 +5,11 @@ Pick one of three modes from the main menu (click a card or press 1 / 2 / 3):
 
 | Mode | Rules |
 |---|---|
-| **Deathmatch** | You + 11 bots, everyone vs everyone (bots fight each other too). Respawn after 2.5 s. First to 20 kills wins. |
-| **Battle Royale** | You + 11 bots, everyone vs everyone, no respawns. A purple zone shrinks and hurts anyone outside it. Last one standing wins. When you're out, you spectate (click = next player, R = new match). |
-| **Parkour** | The same map with no enemies. Practice bhop, air strafing, slides and crate jumps. The top bar shows your top speed. |
+| **Deathmatch** | You + 11 bots on the 80 × 80 m arena, everyone vs everyone (bots fight each other too). Respawn after 2.5 s. First to 20 kills wins. |
+| **Battle Royale** | You + 11 bots on a 180 × 180 m map (central tower, four ruined towns, four watchtowers, trees and rocks), everyone vs everyone, no respawns. A purple zone shrinks and hurts anyone outside it. Last one standing wins. When you're out, you spectate (click = next player, R = new match). |
+| **Parkour** | The arena with no enemies. Practice bhop, air strafing, slides and crate jumps. The top bar shows your top speed. |
+
+Deathmatch and battle royale start with a 5-second countdown. You can look around, but nobody can move or shoot until it shows **GO!**.
 
 New to game programming? Read **[FUNDAMENTALS.md](FUNDAMENTALS.md)**. It explains every system in this project from the ground up.
 
@@ -28,7 +30,7 @@ Windows may show "Windows protected your PC" because the exe isn't code-signed. 
 | Space | Jump. Hold it to bunny hop |
 | Shift / C | Crouch. Press while running to slide |
 | R | Reload |
-| 1 / 2 / Mouse wheel | Rifle / Sniper |
+| 1 / 2 / Mouse wheel | M4A4 / AWP |
 | Tab | Scoreboard |
 | Esc | Pause (from the pause menu, `[` and `]` change sensitivity, default 1.00, M goes to the main menu, and Q quits) |
 | R / M (match over) | Play the same mode again / back to the main menu |
@@ -48,8 +50,8 @@ Gun sounds live in `source/`. The build copies them next to the exe, so they wor
 
 | File | Used for |
 |---|---|
-| `source/burst.mp3` | Assault rifle (yours and every bot's) |
-| `source/sniper.mp3` | Sniper |
+| `source/burst.mp3` | M4A4 (yours and every bot's) |
+| `source/sniper.mp3` | AWP |
 
 - **Replace a sound:** overwrite the file with the same name (`.mp3`, `.wav` or `.ogg`).
 - **Use a different file for a weapon:** change `Sound:` in `src/Weapon.cs`.
@@ -62,16 +64,17 @@ Gun sounds live in `source/`. The build copies them next to the exe, so they wor
 | File | What it does |
 |---|---|
 | `Program.cs` | Entry point |
-| `src/Game.cs` | Game loop, fixed timestep, game modes and match flow, shooting |
-| `src/Player.cs` | Player movement, crouch/slide, health, recoil, gun model |
+| `src/Game.cs` | Game loop, fixed timestep, game modes, match flow and pre-match countdown, shooting |
+| `src/Player.cs` | Player movement, crouch/slide, health, recoil, first-person gun and arms |
 | `src/Movement.cs` | Quake-style friction and acceleration (bhop and air strafe math) |
 | `src/KinematicBody.cs` | Box collision against the map, stair stepping |
-| `src/World.cs` | Map layout, raycasts, line-of-sight checks |
-| `src/Bot.cs` | Enemy AI: target selection, combat, wandering, zone awareness |
+| `src/World.cs` | Both maps (arena, battle royale), raycasts, line-of-sight checks |
+| `src/Bot.cs` | Enemy AI: target selection, combat, wandering, zone awareness; soldier model |
 | `src/Combatant.cs` | `ICombatant`, shared by the player and bots, plus health/respawn rules |
 | `src/Zone.cs` | Shrinking battle royale circle |
-| `src/Weapon.cs` | Weapon stats, ammo, reload, fire rate, which sound each gun uses |
+| `src/Weapon.cs` | Weapon stats, ammo, reload, fire rate, which model and sound each gun uses |
+| `src/GunModel.cs` | M4A4 and AWP models, muzzle flash |
 | `src/Audio.cs` | Loads gun sounds, overlapping playback, distance volume and left/right panning |
 | `src/Effects.cs` | Tracers and particles |
-| `src/Hud.cs` | Crosshair, scope, health, ammo, kill feed, minimap, mode menu and per-mode screens |
-| `src/Render.cs` | Box drawing with flat per-face shading |
+| `src/Hud.cs` | Crosshair, scope, health, ammo, kill feed, minimap, countdown, mode menu and per-mode screens |
+| `src/Render.cs` | Box and cylinder drawing with flat per-face shading |

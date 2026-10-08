@@ -108,7 +108,7 @@ forward = ( sin(yaw)·cos(pitch),  sin(pitch),  cos(yaw)·cos(pitch) )
 
 The mouse changes the angles: `Yaw -= mouseDX * sensitivity`. The camera sits at the player's eye and looks at `eye + forward`. In `Game`, sensitivity 1.00 (the default) means 0.001 radians of turn per pixel of mouse movement (`RadiansPerPixel`).
 
-- **FOV (field of view)** is how wide the camera sees. Aiming down sights lowers the FOV (75° → 55° for the rifle, 22° for the sniper), which is a zoom.
+- **FOV (field of view)** is how wide the camera sees. Aiming down sights lowers the FOV (75° → 55° for the M4A4, 22° for the AWP), which is a zoom.
 - **ADS sensitivity:** when zoomed, the same mouse motion would feel huge, so sensitivity is multiplied by `currentFov / baseFov`.
 
 ---
@@ -126,9 +126,18 @@ GPUs only draw triangles. A box is 6 faces × 2 triangles. `Render.ShadedBox` se
 
 Krunker's look comes from flat colors with each side of a block a slightly different shade. We do that with no lights at all: the top face is 100% brightness, the X sides 86%, the Z sides 72%, the bottom 55%. Dark outlines (`DrawBoundingBox`) make the shapes readable.
 
+### Models from boxes and cylinders
+
+Everything is built from two shapes in `Render.cs`: shaded boxes and shaded cylinders. A cylinder is a ring of side quads plus two capped ends; each side quad gets the brightness of the box face it most resembles (pointing up = 100%, down = 55%), so cylinders match the fake lighting. `Render.TiltedCube` rotates a box around X for slanted parts like grips and magazines.
+
+- **Guns** (`GunModel.cs`): the M4A4 has a collapsible stock, flat-top rail, curved magazine, iron sights and a flash hider; the AWP has an olive thumbhole stock, a bolt handle, a big scope with a glass lens and a muzzle brake. Both are modeled in meters with the barrel along +Z, so the same model is used in first person and in the bots' hands (scaled 1.4× there so it reads at a distance).
+- **Bots** (`Bot.Draw`): boots, legs that swing from the hip, a vest in the bot's color with pouches, a backpack, both arms reaching for the gun's grip and handguard, a face, and one of four headgears picked from the bot's roster index. The head still fills exactly the head hitbox.
+
 ### The gun (view model)
 
-If the gun were drawn like normal geometry, it would poke into walls when you stand close to them. So `Player.DrawViewModel` turns the depth test **off** and draws the gun last, on top of everything. It is positioned using a **transform stack**: `Translate(eye)` → `Rotate(yaw)` → `Rotate(pitch)` → `Translate(gun offset)`. Inside that transform, "forward" is simply +Z. The bots are drawn the same way, rotated by their yaw.
+The gun and your gloved arms are positioned with a **transform stack**: `Translate(eye)` → `Rotate(yaw)` → `Rotate(pitch)` → `Translate(gun offset)`. Inside that transform, "forward" is simply +Z. The bots are drawn the same way, rotated by their yaw. Aiming down sights moves the gun to the center so your eye sits right behind the M4A4's iron sights.
+
+If the gun were drawn like normal geometry, it would poke into walls when you stand close to them. Turning the depth test off fixes that, but then the gun's own parts can't hide each other. So `Player.DrawViewModel` keeps the depth test on and instead swaps in a modified **projection matrix** for the gun: depth (`z / w`, normally −1..1) is squeezed into −1..−0.98. The picture is identical (x, y and w are untouched), the gun's parts still sort correctly among themselves, and every one of them is nearer than any wall. Shooting also shows a short **muzzle flash** at the barrel tip, rotated randomly so every shot looks a bit different.
 
 ### Draw order in a frame
 
@@ -282,7 +291,9 @@ stateDiagram-v2
 
 One `Game` class runs all three modes. `Mode` (a `GameMode` enum) decides which rules apply, in just a few places: `ResetMatch` (bots or not), `FixedTick` (respawns or zone), `ApplyDamage` (respawn timer or placement) and `CheckMatchEnd` (who wins). Everything else, including movement, shooting, bots and rendering, is shared. Adding a mode means touching those few `switch`es, not copying the game.
 
-**Starting positions (all modes):** the map has exactly 12 spawn points. They are shuffled with `Random.Shared.Shuffle` and everyone starts on a different one.
+**Starting positions (all modes):** the arena has exactly 12 spawn points and the battle royale map 16. They are shuffled with `Random.Shared.Shuffle` and everyone starts on a different one.
+
+**Countdown:** deathmatch and battle royale start with `Game.Countdown` at 5 seconds. While it's above 0, `UpdatePlaying` still runs mouse look and gravity (so you land on the ground), but skips shooting, movement input and `FixedTick`, so bots, respawns and the zone are frozen. Then "GO!" fades out over 0.8 s. Pausing during the countdown pauses it too, because it only counts down in the `Playing` state.
 
 ### Deathmatch
 
@@ -292,15 +303,16 @@ One `Game` class runs all three modes. `Mode` (a `GameMode` enum) decides which 
 
 ### Battle royale
 
+- **Bigger map:** `World.CreateRoyale` builds a 180 × 180 m grass map: the arena's central tower in the middle, a ruined town in each corner (roofless buildings with a doorway in every wall, so bots walking in straight lines can't get trapped, plus a platform), a 6 m watchtower with sandbags on each side of the map, then 45 trees, 35 rocks and 30 crate stacks scattered with a **fixed random seed** (`new Random(1337)`), so the map is identical every match. Scatter keeps clear of existing blocks and spawn points.
 - **No respawns.** When someone is eliminated, their placement is `aliveCount + 1`: if 3 players are still alive, you finished 4th. When one player is left, they get #1 and the match ends. If the last two die on the same tick, the one eliminated second is already #1.
 - **The zone** (`src/Zone.cs`) is a list of phases: *wait → shrink to a smaller circle → wait → ...*. Each new circle is placed randomly **inside** the current one (a random point within `currentRadius − nextRadius` of the center), so the play area always moves inward. During a shrink, the center and radius are interpolated with `Lerp`, the same trick as rendering between ticks.
-- **Zone damage** runs every tick: anyone whose 2D distance from the center is greater than the radius takes `Dps × dt`. The last phase closes to radius 0, so a match lasts about 2 minutes at most.
+- **Zone damage** runs every tick: anyone whose 2D distance from the center is greater than the radius takes `Dps × dt`. The first circle covers the whole map (`HalfSize × √2`), and the last phase closes to radius 0, so a match lasts about 3 minutes at most.
 - **Drawing the zone:** 96 tall quads arranged in a circle, drawn translucent with **backface culling turned off** so the wall is visible from both inside and outside. It is drawn *after* the solid geometry, because transparent things need what's behind them to already be on screen.
 - **Spectating:** when you're eliminated, the camera follows your killer from behind (third person). A ray from the bot's head backward pulls the camera in front of any wall, so it never ends up inside geometry.
 
 ### Parkour
 
-- The same map with no bots: `Combatants` contains only you, so nothing can damage you and `CheckMatchEnd` never ends the match.
+- The arena with no bots: `Combatants` contains only you, so nothing can damage you and `CheckMatchEnd` never ends the match. There is no countdown.
 - `TopSpeed` keeps your best horizontal speed for the run. It's a simple goal for practicing air strafing (see section 7).
 
 ---

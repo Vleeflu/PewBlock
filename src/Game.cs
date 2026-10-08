@@ -25,8 +25,9 @@ public sealed class KillFeedEntry(string killer, string victim, string weapon, b
 ///   3. draw 3D world, then 2D HUD on top
 /// Modes:
 ///   Deathmatch    everyone vs everyone, respawns, first to ScoreToWin kills wins.
-///   Battle royale everyone vs everyone, no respawns, shrinking zone, last one alive wins.
+///   Battle royale everyone vs everyone, no respawns, shrinking zone, last one alive wins (bigger map).
 ///   Parkour       empty map, no bots: just movement.
+/// Deathmatch and battle royale start with a countdown during which nobody can move or shoot.
 /// </summary>
 public sealed class Game
 {
@@ -36,9 +37,12 @@ public sealed class Game
     const float RadiansPerPixel = 0.001f; // mouse turn per pixel at sensitivity 1.00
     const float KillFeedLifetime = 6f;
     public const int ScoreToWin = 20;      // deathmatch
-    static readonly WeaponDef BotWeapon = WeaponDefs.Rifle;
+    public const float CountdownTime = 5f; // seconds frozen before deathmatch / battle royale start
+    public const float GoTime = 0.8f;      // how long "GO!" stays on screen afterwards
 
-    public readonly World World = World.CreateArena();
+    readonly World arena = World.CreateArena();
+    readonly World royale = World.CreateRoyale();
+    public World World { get; private set; }
     public readonly Zone Zone = new();
     public readonly Player Player = new();
     public readonly List<Bot> Bots = [];
@@ -58,6 +62,8 @@ public sealed class Game
     public ICombatant? KilledBy; // deathmatch: who eliminated you last; the death cam looks at them
     public Bot? Spectating;      // battle royale: who the camera follows after you are eliminated
     public float TopSpeed;       // parkour: best horizontal speed this run
+    /// <summary>Above 0: match not started yet (frozen). 0 down to -GoTime: just started, "GO!" is shown.</summary>
+    public float Countdown;
 
     float accumulator, menuTime;
     bool pendingCrouchPress, quit;
@@ -83,6 +89,7 @@ public sealed class Game
     static readonly Color PlayerTracer = new(255, 230, 150, 255);
     static readonly Color BotTracer = new(255, 120, 90, 255);
 
+    public Game() => World = arena;
     public bool HasZone => Mode == GameMode.BattleRoyale;
 
     public int AliveCount
@@ -119,14 +126,15 @@ public sealed class Game
     void ResetMatch(GameMode mode)
     {
         Mode = mode;
+        World = mode == GameMode.BattleRoyale ? royale : arena;
         Bots.Clear();
         if (mode != GameMode.Parkour)
-            foreach (var (name, color) in BotRoster) Bots.Add(new Bot(name, color));
+            for (int i = 0; i < BotRoster.Length; i++) Bots.Add(new Bot(BotRoster[i].Name, BotRoster[i].Color, look: i));
         Combatants.Clear();
         Combatants.Add(Player);
         Combatants.AddRange(Bots);
 
-        Zone.Reset();
+        Zone.Reset(World);
         // Everyone starts on a different spawn point (there are as many as players).
         var spawns = World.SpawnPoints.ToArray();
         Random.Shared.Shuffle(spawns);
@@ -140,6 +148,7 @@ public sealed class Game
         Winner = KilledBy = null;
         Spectating = null;
         TopSpeed = 0;
+        Countdown = mode == GameMode.Parkour ? -GoTime : CountdownTime;
         accumulator = 0;
         DamageFlash = HitmarkerTimer = 0;
     }
@@ -306,6 +315,10 @@ public sealed class Game
     {
         if (Raylib.IsKeyPressed(KeyboardKey.Escape)) { Pause(); return; }
 
+        // Pre-match countdown: you can look around, but nobody moves or shoots yet.
+        Countdown = MathF.Max(-GoTime, Countdown - dt);
+        bool frozen = Countdown > 0;
+
         // Mouse look runs every frame (not in fixed ticks) so aiming has zero added latency.
         // Sensitivity scales with FOV so scoped aim doesn't feel twitchy.
         var mouse = Raylib.GetMouseDelta();
@@ -314,7 +327,7 @@ public sealed class Game
         if (Player.Alive)
         {
             Player.Look(mouse, Sensitivity * RadiansPerPixel * Camera.FovY / BaseFov);
-            HandleWeaponInput();
+            if (!frozen) HandleWeaponInput();
         }
         else if (Mode == GameMode.BattleRoyale && HandleSpectatorInput())
         {
@@ -331,7 +344,9 @@ public sealed class Game
         {
             input.CrouchPressed = pendingCrouchPress;
             pendingCrouchPress = false;
-            FixedTick(input);
+            // During the countdown only gravity runs (so you land on the ground), with no input and no bots.
+            if (frozen) Player.Tick(World, default, TickDt);
+            else FixedTick(input);
             accumulator -= TickDt;
         }
         RenderAlpha = accumulator / TickDt; // how far we are between the last tick and the next
@@ -396,10 +411,10 @@ public sealed class Game
     void HandleBotShot(Bot bot, BotShot shot)
     {
         Effects.AddTracer(shot.From, shot.To, BotTracer);
-        audio?.PlayShotAt(BotWeapon.Sound, shot.From, Camera.Position, Vector3.Normalize(Camera.Target - Camera.Position));
+        audio?.PlayShotAt(Bot.Weapon.Sound, shot.From, Camera.Position, Vector3.Normalize(Camera.Target - Camera.Position));
         if (!shot.Hit) return;
         if (shot.Target == Player) DamageFlash = MathF.Min(0.6f, DamageFlash + 0.25f);
-        ApplyDamage(shot.Target, shot.Damage, bot, BotWeapon.Name, false);
+        ApplyDamage(shot.Target, shot.Damage, bot, Bot.Weapon.Name, false);
     }
 
     // ───────────────────────────── shooting ─────────────────────────────

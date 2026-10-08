@@ -17,7 +17,7 @@ public static class Hud
     static readonly (string Title, string Line1, string Line2)[] ModeCards =
     [
         ("DEATHMATCH", "12 players, everyone vs everyone", $"respawns, first to {Game.ScoreToWin} kills"),
-        ("BATTLE ROYALE", "12 players, no respawns", "shrinking zone, last one standing"),
+        ("BATTLE ROYALE", "12 players, big map, no respawns", "shrinking zone, last one standing"),
         ("PARKOUR", "empty map, no enemies", "practice bhop, slides and jumps"),
     ];
 
@@ -54,6 +54,7 @@ public static class Hud
         }
         if (g.Mode != GameMode.Parkour) DrawKillFeed(g, w, s);
         DrawTopBar(g, w, s);
+        if (g.State != GameState.MatchOver && g.Countdown > -Game.GoTime) DrawCountdown(g, w, h, s);
         DrawMinimap(g, s);
 
         if (g.State == GameState.MatchOver) DrawMatchOver(g, w, h, s);
@@ -198,6 +199,31 @@ public static class Hud
         TextCentered(line, w / 2, (int)(13 * s), size, color);
     }
 
+    /// <summary>Big 5, 4, 3, 2, 1 before the match, then a fading "GO!".</summary>
+    static void DrawCountdown(Game g, int w, int h, float s)
+    {
+        if (g.Countdown <= 0)
+        {
+            float fade = 1 + g.Countdown / Game.GoTime; // 1 → 0
+            int goSize = (int)(110 * s * (1.4f - 0.4f * fade));
+            int x = w / 2 - MeasureText("GO!", goSize) / 2, y = (int)(h * 0.3f);
+            DrawText("GO!", x + 3, y + 3, goSize, ColorAlpha(Shadow, Shadow.A / 255f * fade));
+            DrawText("GO!", x, y, goSize, ColorAlpha(Gold, fade));
+            return;
+        }
+
+        DrawRectangle(0, (int)(h * 0.2f), w, (int)(h * 0.36f), Panel);
+        TextCentered("MATCH STARTS IN", w / 2, (int)(h * 0.23f), (int)(28 * s), Color.White);
+        // Each number starts big and shrinks during its second.
+        float sub = g.Countdown - MathF.Floor(g.Countdown);
+        int size = (int)(110 * s * (1 + 0.35f * sub));
+        TextCentered($"{MathF.Ceiling(g.Countdown)}", w / 2, (int)(h * 0.38f) - size / 2, size, Gold);
+        string goal = g.Mode == GameMode.BattleRoyale
+            ? "Last one standing wins. Stay inside the zone!"
+            : $"First to {Game.ScoreToWin} kills wins";
+        TextCentered(goal, w / 2, (int)(h * 0.5f), (int)(22 * s), Color.White);
+    }
+
     static void DrawKillFeed(Game g, int w, float s)
     {
         int size = (int)(18 * s);
@@ -224,7 +250,7 @@ public static class Hud
     {
         int size = (int)(170 * s);
         int x0 = 10, y0 = (int)(36 * s);
-        float scale = size / (World.HalfSize * 2);
+        float scale = size / (g.World.HalfSize * 2);
         var center = new Vector2(x0 + size / 2f, y0 + size / 2f);
         Vector2 ToMap(float x, float z) => center + new Vector2(-x * scale, -z * scale);
 

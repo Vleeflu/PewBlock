@@ -16,10 +16,14 @@ public readonly record struct BotShot(ICombatant Target, Vector3 From, Vector3 T
 /// Bots don't aim real bullets; each shot rolls a hit chance that drops with
 /// distance and with how fast the target moves.
 /// </summary>
-public sealed class Bot(string name, Color color) : ICombatant
+public sealed class Bot(string name, Color color, int look) : ICombatant
 {
     const float MoveSpeed = 6.2f, SightRange = 70f, ShotDamage = 10f;
     public const float Height = 1.85f, HeadBottom = 1.35f;
+    public static readonly WeaponDef Weapon = WeaponDefs.Rifle;
+    /// <summary>Where the gun model sits in the bot's local space (-X is right). Drawn larger than life so it reads at a distance.</summary>
+    static readonly Vector3 GunMount = new(-0.14f, 1.15f, 0.3f);
+    const float GunScale = 1.4f;
 
     public string Name { get; } = name;
     public Color Color { get; } = color;
@@ -241,8 +245,8 @@ public sealed class Bot(string name, Color color) : ICombatant
         chance = Math.Clamp(chance, 0.08f, 0.8f);
         bool hit = Random.Shared.NextDouble() < chance;
 
-        var muzzle = Body.Position + new Vector3(0, 1.18f, 0)
-                     + MathUtil.FlatForward(Yaw) * 0.8f + MathUtil.FlatRight(Yaw) * 0.3f;
+        var muzzle = Body.Position + new Vector3(0, GunMount.Y + GunScale * GunModels.BarrelY, 0)
+                     + MathUtil.FlatForward(Yaw) * (GunMount.Z + GunScale * Weapon.MuzzleDistance) + MathUtil.FlatRight(Yaw) * -GunMount.X;
         var aim = victim.Eye - new Vector3(0, 0.4f, 0); // chest
         Vector3 end;
         if (hit)
@@ -257,29 +261,125 @@ public sealed class Bot(string name, Color color) : ICombatant
         return new BotShot(victim, muzzle, end, hit, ShotDamage);
     }
 
-    /// <summary>Blocky character, rotated to face Yaw.</summary>
+    // Looks come from the bot's roster index, so each bot always looks the same and neighbors differ.
+    static readonly Color[] SkinTones =
+    [
+        new(240, 200, 160, 255), new(205, 150, 110, 255), new(150, 100, 70, 255), new(255, 218, 185, 255),
+    ];
+
+    static readonly Color Boot = new(52, 40, 32, 255);
+    static readonly Color Strap = new(36, 36, 40, 255);
+    static readonly Color Backpack = new(84, 92, 62, 255);
+    static readonly Color Glove = new(50, 48, 44, 255);
+
+    /// <summary>
+    /// Soldier made of shaded boxes, rotated to face Yaw: boots, swinging legs, vest in the
+    /// bot's color, backpack, both arms on an M4A4, a face, and one of four headgears.
+    /// The head fills the head hitbox (1.35 m to 1.85 m) and everything below it the body hitbox.
+    /// </summary>
     public void Draw(float alpha)
     {
         if (!Alive) return;
         var pos = RenderPosition(alpha);
         bool flash = HurtFlash > 0;
-        var shirt = flash ? Color.White : Color;
-        var pants = MathUtil.Shade(Color, 0.55f);
-        var skin = flash ? Color.White : new Color(240, 200, 160, 255);
-        var dark = new Color(40, 40, 50, 255);
-        float swing = MathF.Sin(walkPhase) * 0.18f;
+        Color C(Color c) => flash ? Color.White : c;
+        var vest = C(Color);
+        var shirt = C(MathUtil.Shade(Color, 0.7f));
+        var pants = C(MathUtil.Shade(Color, 0.42f));
+        var skin = C(SkinTones[(look * 3 + 1) % SkinTones.Length]);
+        var dark = C(Strap);
 
         Rlgl.PushMatrix();
         Rlgl.Translatef(pos.X, pos.Y, pos.Z);
         Rlgl.Rotatef(Yaw * MathUtil.Rad2Deg, 0, 1, 0);
-        Render.ShadedCube(new(0.17f, 0.4f, swing), new(0.26f, 0.8f, 0.28f), pants);
-        Render.ShadedCube(new(-0.17f, 0.4f, -swing), new(0.26f, 0.8f, 0.28f), pants);
-        Render.ShadedCube(new(0, 1.075f, 0), new(0.62f, 0.55f, 0.36f), shirt);
-        Render.ShadedCube(new(0, 1.6f, 0), new(0.5f, 0.5f, 0.5f), skin);
-        Render.ShadedCube(new(0.11f, 1.65f, 0.255f), new(0.08f, 0.08f, 0.02f), dark);
-        Render.ShadedCube(new(-0.11f, 1.65f, 0.255f), new(0.08f, 0.08f, 0.02f), dark);
-        Render.ShadedCube(new(-0.3f, 1.1f, 0.25f), new(0.14f, 0.14f, 0.5f), shirt);
-        Render.ShadedCube(new(-0.3f, 1.18f, 0.55f), new(0.09f, 0.12f, 0.55f), dark);
+
+        // Legs swing from the hip while walking; in the air one is forward, one back.
+        float swing = Body.Grounded ? MathF.Sin(walkPhase) * 28f : 22f;
+        DrawLeg(0.14f, swing, pants, C(Boot), dark);
+        DrawLeg(-0.14f, Body.Grounded ? -swing : -12f, pants, C(Boot), dark);
+
+        // Torso: shirt, vest with pouches, belt, backpack.
+        Render.ShadedCube(new(0, 1.15f, 0), new(0.56f, 0.42f, 0.3f), shirt);
+        Render.ShadedCube(new(0, 1.17f, 0.005f), new(0.6f, 0.34f, 0.34f), vest);
+        for (int i = -1; i <= 1; i++)
+            Render.ShadedCube(new(i * 0.16f, 1.08f, 0.19f), new(0.12f, 0.12f, 0.05f), C(MathUtil.Shade(Color, 0.8f)));
+        Render.ShadedCube(new(0, 0.95f, 0), new(0.58f, 0.07f, 0.32f), dark);
+        Render.ShadedCube(new(0, 0.95f, 0.165f), new(0.08f, 0.05f, 0.01f), C(new Color(170, 150, 90, 255)));
+        Render.ShadedCube(new(0, 1.15f, -0.24f), new(0.42f, 0.4f, 0.16f), C(Backpack));
+        Render.ShadedCube(new(0, 1.3f, -0.25f), new(0.44f, 0.1f, 0.17f), C(MathUtil.Shade(Backpack, 0.8f)));
+
+        // Gun, then both arms reaching for its grip and handguard.
+        Rlgl.PushMatrix();
+        Rlgl.Translatef(GunMount.X, GunMount.Y, GunMount.Z);
+        Rlgl.Scalef(GunScale, GunScale, GunScale);
+        if (flash) Render.ShadedCube(Vector3.Zero, new(0.06f, 0.1f, 0.5f), Color.White);
+        else GunModels.Draw(Weapon.Model, Weapon.Color);
         Rlgl.PopMatrix();
+        var rightHand = GunMount + new Vector3(0, -0.08f, -0.165f) * GunScale;
+        var leftHand = GunMount + new Vector3(0.01f, -0.02f, 0.14f) * GunScale;
+        DrawArm(new(-0.34f, 1.31f, 0), new(-0.33f, 1.06f, 0.0f), rightHand, shirt, C(Glove));
+        DrawArm(new(0.34f, 1.31f, 0), new(0.24f, 1.08f, 0.22f), leftHand, shirt, C(Glove));
+
+        // Neck, head and face.
+        Render.ShadedCube(new(0, 1.37f, 0), new(0.18f, 0.06f, 0.18f), skin);
+        Render.ShadedCube(new(0, 1.58f, 0), new(0.42f, 0.42f, 0.42f), skin);
+        foreach (int side in new[] { -1, 1 })
+        {
+            Render.ShadedCube(new(side * 0.1f, 1.61f, 0.212f), new(0.1f, 0.065f, 0.01f), C(Color.White));
+            Render.ShadedCube(new(side * 0.09f, 1.605f, 0.219f), new(0.045f, 0.05f, 0.01f), C(new Color(30, 30, 40, 255)));
+            Render.ShadedCube(new(side * 0.1f, 1.665f, 0.214f), new(0.11f, 0.022f, 0.012f), C(MathUtil.Shade(skin, 0.45f)));
+        }
+        Render.ShadedCube(new(0, 1.47f, 0.212f), new(0.12f, 0.024f, 0.01f), C(MathUtil.Shade(skin, 0.55f)));
+        DrawHeadgear(look % 4, vest, dark, flash);
+
+        Rlgl.PopMatrix();
+    }
+
+    /// <summary>Pants, knee pad and boot, rotated around the hip joint.</summary>
+    static void DrawLeg(float x, float degrees, Color pants, Color boot, Color pad)
+    {
+        Rlgl.PushMatrix();
+        Rlgl.Translatef(x, 0.92f, 0);
+        Rlgl.Rotatef(degrees, 1, 0, 0);
+        Render.ShadedCube(new(0, -0.42f, 0), new(0.22f, 0.8f, 0.24f), pants);
+        Render.ShadedCube(new(0, -0.47f, 0.125f), new(0.2f, 0.13f, 0.03f), pad);
+        Render.ShadedCube(new(0, -0.85f, 0.035f), new(0.23f, 0.15f, 0.32f), boot);
+        Rlgl.PopMatrix();
+    }
+
+    static void DrawArm(Vector3 shoulder, Vector3 elbow, Vector3 hand, Color sleeve, Color glove)
+    {
+        Render.ShadedCylinder(shoulder, elbow, 0.075f, sleeve, 8);
+        Render.ShadedCylinder(elbow, hand, 0.062f, sleeve, 8);
+        Render.ShadedCube(hand, new(0.1f, 0.1f, 0.1f), glove);
+    }
+
+    /// <summary>0 helmet with goggles, 1 cap, 2 spiky hair, 3 beanie. Stays inside the head hitbox.</summary>
+    static void DrawHeadgear(int kind, Color color, Color dark, bool flash)
+    {
+        switch (kind)
+        {
+            case 0:
+                Render.ShadedCube(new(0, 1.8f, 0), new(0.48f, 0.12f, 0.48f), MathUtil.Shade(color, 0.75f));
+                Render.ShadedCube(new(0, 1.75f, 0), new(0.5f, 0.04f, 0.5f), MathUtil.Shade(color, 0.6f));
+                Render.ShadedCube(new(0, 1.72f, 0.215f), new(0.36f, 0.07f, 0.03f), dark);
+                Render.ShadedCube(new(0, 1.72f, 0.232f), new(0.3f, 0.05f, 0.01f), flash ? Color.White : new Color(120, 190, 230, 255));
+                break;
+            case 1:
+                Render.ShadedCube(new(0, 1.81f, -0.01f), new(0.45f, 0.1f, 0.45f), color);
+                Render.ShadedCube(new(0, 1.77f, 0.3f), new(0.38f, 0.03f, 0.2f), MathUtil.Shade(color, 0.7f));
+                break;
+            case 2:
+                var hair = flash ? Color.White : new Color(60, 42, 30, 255);
+                Render.ShadedCube(new(0, 1.81f, 0), new(0.44f, 0.06f, 0.44f), hair);
+                Render.ShadedCube(new(0, 1.66f, -0.215f), new(0.44f, 0.26f, 0.04f), hair);
+                for (int i = -1; i <= 1; i++)
+                    Render.ShadedCube(new(i * 0.13f, 1.835f, 0.05f * i), new(0.1f, 0.03f, 0.12f), hair);
+                break;
+            default:
+                Render.ShadedCube(new(0, 1.8f, 0), new(0.45f, 0.14f, 0.45f), MathUtil.Shade(color, 0.9f));
+                Render.ShadedCube(new(0, 1.74f, 0), new(0.47f, 0.05f, 0.47f), MathUtil.Shade(color, 0.6f));
+                break;
+        }
     }
 }

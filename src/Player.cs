@@ -40,7 +40,7 @@ public sealed class Player : ICombatant
     public readonly Weapon[] Weapons = [new(WeaponDefs.Rifle), new(WeaponDefs.Sniper)];
     public int WeaponIndex;
 
-    float slideTimer, timeSinceDamage, swapTimer, viewKick, bobPhase;
+    float slideTimer, timeSinceDamage, swapTimer, viewKick, bobPhase, muzzleFlash, flashSpin;
     bool slideQueued;
 
     public Weapon Weapon => Weapons[WeaponIndex];
@@ -67,6 +67,8 @@ public sealed class Player : ICombatant
         Alive = true;
         Crouching = Sliding = slideQueued = false;
         AdsT = 0;
+        WantsAds = false;
+        muzzleFlash = 0;
         foreach (var w in Weapons) w.Refill();
     }
 
@@ -198,6 +200,7 @@ public sealed class Player : ICombatant
     {
         Weapon.Update(dt);
         if (swapTimer > 0) swapTimer -= dt;
+        if (muzzleFlash > 0) muzzleFlash -= dt;
 
         bool ads = Alive && WantsAds && !Weapon.IsReloading && swapTimer <= 0;
         AdsT = Math.Clamp(AdsT + (ads ? dt : -dt) / AdsTime, 0f, 1f);
@@ -231,24 +234,30 @@ public sealed class Player : ICombatant
         return spread;
     }
 
+    /// <summary>Shot feedback: recoil kick plus a short muzzle flash, spun randomly so shots don't look identical.</summary>
     public void ApplyRecoil()
     {
         float r = Weapon.Def.Recoil * (1f - 0.4f * AdsT);
         RecoilPitch += r;
         Yaw += MathUtil.Range(-1, 1) * r * 0.25f;
         viewKick = 0.06f;
+        muzzleFlash = 0.05f;
+        flashSpin = MathUtil.Range(0, 90);
     }
 
-    /// <summary>Gun position relative to the eye. Local axes: +Z forward, +Y up, -X right.</summary>
+    /// <summary>
+    /// Gun position relative to the eye. Local axes: +Z forward, +Y up, -X right.
+    /// Aiming down sights centers the gun and puts the eye level with the M4A4's iron sights.
+    /// </summary>
     Vector3 ViewModelOffset()
     {
         float ads = AdsT * AdsT * (3 - 2 * AdsT); // smoothstep
         float bob = Math.Min(HorizontalSpeed / 7.5f, 1f) * (1f - ads);
         float drop = Math.Max(swapTimer, 0) / SwapTime * 0.3f;
         return new Vector3(
-            float.Lerp(-0.2f, 0f, ads) + MathF.Cos(bobPhase) * 0.012f * bob,
-            float.Lerp(-0.2f, -0.12f, ads) + MathF.Abs(MathF.Sin(bobPhase)) * 0.015f * bob - drop,
-            0.42f - viewKick);
+            float.Lerp(-0.17f, 0f, ads) + MathF.Cos(bobPhase) * 0.012f * bob,
+            float.Lerp(-0.19f, -0.104f, ads) + MathF.Abs(MathF.Sin(bobPhase)) * 0.015f * bob - drop,
+            0.5f - viewKick);
     }
 
     /// <summary>World position of the gun barrel tip, where tracers start.</summary>
@@ -257,17 +266,23 @@ public sealed class Player : ICombatant
         var forward = AimForward;
         var right = Vector3.Normalize(Vector3.Cross(forward, Vector3.UnitY));
         var up = Vector3.Cross(right, forward);
-        var local = ViewModelOffset() + new Vector3(0, 0.02f, Weapon.Def.MuzzleDistance);
+        var local = ViewModelOffset() + new Vector3(0, GunModels.BarrelY, Weapon.Def.MuzzleDistance);
         return eye - right * local.X + up * local.Y + forward * local.Z;
     }
 
-    /// <summary>Draws the gun in front of the camera. Depth testing is off so it never clips into walls.</summary>
+    /// <summary>
+    /// Draws the gun and arms in front of the camera. A normal draw would poke into walls
+    /// when you stand close to them, so the projection is changed to squeeze the gun's
+    /// depth into the nearest 1% of the depth buffer: its parts still hide each other
+    /// correctly, but every one of them is in front of the world.
+    /// </summary>
     public void DrawViewModel(Vector3 eye)
     {
         if (!Alive || (Weapon.Def.HasScope && AdsT > 0.9f)) return;
 
-        Rlgl.DrawRenderBatchActive();
-        Rlgl.DisableDepthTest();
+        Rlgl.DrawRenderBatchActive(); // the world must be drawn with the normal projection
+        var projection = Rlgl.GetMatrixProjection();
+        Rlgl.SetMatrixProjection(CompressDepth(projection, 0.01f));
         Rlgl.PushMatrix();
         Rlgl.Translatef(eye.X, eye.Y, eye.Z);
         Rlgl.Rotatef(Yaw * MathUtil.Rad2Deg, 0, 1, 0);
@@ -275,27 +290,50 @@ public sealed class Player : ICombatant
         var o = ViewModelOffset();
         Rlgl.Translatef(o.X, o.Y, o.Z);
 
-        var c = Weapon.Def.Color;
-        var dark = MathUtil.Shade(c, 0.55f);
-        var skin = new Color(240, 200, 160, 255);
-        if (Weapon.Def.HasScope)
-        {
-            Render.ShadedCube(new(-0.02f, -0.09f, -0.2f), new(0.1f, 0.1f, 0.25f), skin);
-            Render.ShadedCube(new(0, 0, 0.05f), new(0.08f, 0.1f, 0.6f), c);
-            Render.ShadedCube(new(0, 0.02f, 0.5f), new(0.03f, 0.03f, 0.45f), dark);
-            Render.ShadedCube(new(0, 0.09f, 0.05f), new(0.06f, 0.06f, 0.3f), dark);
-        }
-        else
-        {
-            Render.ShadedCube(new(-0.02f, -0.09f, -0.15f), new(0.1f, 0.1f, 0.25f), skin);
-            Render.ShadedCube(new(0, 0, 0), new(0.08f, 0.12f, 0.45f), c);
-            Render.ShadedCube(new(0, -0.11f, 0.05f), new(0.06f, 0.14f, 0.08f), dark);
-            Render.ShadedCube(new(0, 0.02f, 0.33f), new(0.035f, 0.035f, 0.25f), dark);
-            Render.ShadedCube(new(0, 0.075f, 0.05f), new(0.03f, 0.03f, 0.1f), dark);
-        }
+        var def = Weapon.Def;
+        GunModels.Draw(def.Model, def.Color);
+        if (def.Model == GunModel.Awp) DrawArms(grip: new(0, -0.06f, -0.235f), gripTilt: 14, support: new(0, -0.038f, 0.2f));
+        else DrawArms(grip: new(0, -0.08f, -0.165f), gripTilt: 18, support: new(0, -0.008f, 0.14f));
+        if (muzzleFlash > 0) GunModels.DrawMuzzleFlash(def.MuzzleDistance, flashSpin, def.Model == GunModel.Awp ? 1.6f : 1f);
 
         Rlgl.PopMatrix();
         Rlgl.DrawRenderBatchActive();
-        Rlgl.EnableDepthTest();
+        Rlgl.SetMatrixProjection(projection);
+    }
+
+    /// <summary>
+    /// Rewrites the depth row of a projection matrix so depth (z / w, normally -1..1)
+    /// lands in -1..-1+2e instead. x, y and w are untouched, so the image is identical.
+    /// </summary>
+    static Matrix4x4 CompressDepth(Matrix4x4 p, float e)
+    {
+        p.M31 = e * p.M31 + (e - 1) * p.M41;
+        p.M32 = e * p.M32 + (e - 1) * p.M42;
+        p.M33 = e * p.M33 + (e - 1) * p.M43;
+        p.M34 = e * p.M34 + (e - 1) * p.M44;
+        return p;
+    }
+
+    static readonly Color Glove = new(50, 48, 44, 255);
+    static readonly Color GloveCuff = new(32, 32, 34, 255);
+    static readonly Color Sleeve = new(76, 92, 112, 255);
+
+    /// <summary>
+    /// Gloved hands and sleeves. <paramref name="grip"/> is the pistol grip center, <paramref name="support"/>
+    /// the bottom middle of the handguard. Forearms run back toward the shoulders, below and beside the camera.
+    /// </summary>
+    static void DrawArms(Vector3 grip, float gripTilt, Vector3 support)
+    {
+        // Right hand wrapped around the pistol grip.
+        Render.TiltedCube(grip + new Vector3(-0.004f, 0.005f, -0.004f), new(0.062f, 0.08f, 0.066f), gripTilt, Glove);
+        Render.ShadedCylinder(grip + new Vector3(-0.005f, -0.03f, -0.04f), grip + new Vector3(-0.02f, -0.07f, -0.09f), 0.038f, GloveCuff);
+        Render.ShadedCylinder(grip + new Vector3(-0.015f, -0.06f, -0.08f), grip + new Vector3(-0.08f, -0.25f, -0.3f), 0.045f, Sleeve);
+
+        // Left hand under the handguard: palm below, fingers up the left side, thumb on the right.
+        Render.ShadedCube(support + new Vector3(0.005f, -0.012f, 0), new(0.07f, 0.03f, 0.085f), Glove);
+        Render.ShadedCube(support + new Vector3(0.034f, 0.025f, 0), new(0.012f, 0.05f, 0.075f), Glove);
+        Render.ShadedCube(support + new Vector3(-0.032f, 0.02f, -0.01f), new(0.012f, 0.02f, 0.05f), Glove);
+        Render.ShadedCylinder(support + new Vector3(0.02f, -0.02f, -0.05f), support + new Vector3(0.05f, -0.05f, -0.09f), 0.04f, GloveCuff);
+        Render.ShadedCylinder(support + new Vector3(0.045f, -0.045f, -0.08f), support + new Vector3(0.22f, -0.24f, -0.33f), 0.045f, Sleeve);
     }
 }

@@ -44,6 +44,57 @@ public static class Render
         Rlgl.End();
     }
 
+    /// <summary>Box rotated around the X axis (positive tips the top forward, toward +Z), e.g. a slanted grip or magazine.</summary>
+    public static void TiltedCube(Vector3 center, Vector3 size, float degrees, Color color)
+    {
+        Rlgl.PushMatrix();
+        Rlgl.Translatef(center.X, center.Y, center.Z);
+        Rlgl.Rotatef(degrees, 1, 0, 0);
+        ShadedCube(Vector3.Zero, size, color);
+        Rlgl.PopMatrix();
+    }
+
+    /// <summary>
+    /// Cylinder from <paramref name="a"/> to <paramref name="b"/> with capped ends. Each side
+    /// quad gets the same fake lighting as boxes, picked from the direction it faces.
+    /// </summary>
+    public static void ShadedCylinder(Vector3 a, Vector3 b, float radius, Color c, int sides = 12)
+    {
+        var axis = Vector3.Normalize(b - a);
+        // (u, v, axis) is a right-handed basis, so increasing angle runs counter-clockwise seen from b.
+        var reference = MathF.Abs(axis.Y) < 0.9f ? Vector3.UnitY : Vector3.UnitX;
+        var u = Vector3.Normalize(Vector3.Cross(axis, reference));
+        var v = Vector3.Cross(axis, u);
+        Vector3 Radial(int i)
+        {
+            float t = i * MathF.Tau / sides;
+            return u * MathF.Cos(t) + v * MathF.Sin(t);
+        }
+
+        Rlgl.Begin((int)DrawMode.Quads);
+        for (int i = 0; i < sides; i++)
+        {
+            Vector3 r0 = Radial(i) * radius, r1 = Radial(i + 1) * radius;
+            SetColor(c, Facing(Vector3.Normalize(r0 + r1)));
+            V(a + r0); V(a + r1); V(b + r1); V(b + r0);
+        }
+        Rlgl.End();
+
+        Rlgl.Begin((int)DrawMode.Triangles);
+        SetColor(c, Facing(axis));
+        for (int i = 0; i < sides; i++) { V(b); V(b + Radial(i) * radius); V(b + Radial(i + 1) * radius); }
+        SetColor(c, Facing(-axis));
+        for (int i = 0; i < sides; i++) { V(a); V(a + Radial(i + 1) * radius); V(a + Radial(i) * radius); }
+        Rlgl.End();
+    }
+
+    /// <summary>Brightness for a surface facing <paramref name="n"/>, blending the fixed box-face values.</summary>
+    static float Facing(Vector3 n)
+    {
+        float side = SideZ + (SideX - SideZ) * MathF.Abs(n.X);
+        return n.Y >= 0 ? float.Lerp(side, Top, n.Y) : float.Lerp(side, Bottom, -n.Y);
+    }
+
     /// <summary>Flat quad facing up (+Y), used for floor tiles.</summary>
     public static void FloorQuad(float x0, float z0, float x1, float z1, float y, Color c)
     {
@@ -60,4 +111,5 @@ public static class Render
     }
 
     static void V(float x, float y, float z) => Rlgl.Vertex3f(x, y, z);
+    static void V(Vector3 p) => Rlgl.Vertex3f(p.X, p.Y, p.Z);
 }
